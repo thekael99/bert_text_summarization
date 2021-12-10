@@ -1,6 +1,6 @@
 multiprocess
 pytorch_transformers
 transformers
-pyrouge
+rouge
 nltk
 tensorboardX

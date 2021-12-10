@@ -10,6 +10,8 @@ from others.logging import logger
 from others.utils import test_rouge, rouge_results_to_str
 
 loss_history = []
+
+
 def _tally_parameters(model):
     n_params = sum([p.nelement() for p in model.parameters()])
     return n_params
@@ -148,13 +150,13 @@ class Trainer(object):
                         print("Iter:", step)
                         print("\n Loss at this iter:", loss_history)
                         try:
-                          self._gradient_accumulation(
-                            true_batchs, normalization, total_stats,
-                            report_stats)
+                            self._gradient_accumulation(
+                                true_batchs, normalization, total_stats,
+                                report_stats)
                         except:
-                          loss_history.append(loss_history[-1])
-                          print("Something went wrong")
-                          
+                            loss_history.append(loss_history[-1])
+                            print("Something went wrong")
+
                         report_stats = self._maybe_report_training(
                             step, train_steps,
                             self.optim.learning_rate,
@@ -301,11 +303,12 @@ class Trainer(object):
         self._report_step(0, step, valid_stats=stats)
 
         return stats
+
     def _gradient_accumulation(self, true_batchs, normalization, total_stats,
                                report_stats):
         if self.grad_accum_count > 1:
             self.model.zero_grad()
-        
+
         for batch in true_batchs:
             if self.grad_accum_count == 1:
                 self.model.zero_grad()
@@ -352,7 +355,7 @@ class Trainer(object):
                 distributed.all_reduce_and_rescale_tensors(
                     grads, float(1))
             self.optim.step()
-        
+
     def _save(self, step):
         real_model = self.model
         # real_generator = (self.generator.module

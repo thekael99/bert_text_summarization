@@ -20,8 +20,10 @@ from transformers import XLNetTokenizer
 from others.utils import clean
 from prepro.utils import _get_word_ngrams
 from others.tokenization import format_special_tokens
+from transformers import WordpieceTokenizer
 
 import xml.etree.ElementTree as ET
+from tqdm import tqdm
 
 nyt_remove_words = ["photo", "graph", "chart", "map", "table", "drawing"]
 
@@ -207,7 +209,7 @@ def hashhex(s):
 class BertData():
     def __init__(self, args):
         self.args = args
-        self.tokenizer = AutoTokenizer.from_pretrained('vinai/phobert-base', do_lower_case=True)
+        self.tokenizer = AutoTokenizer.from_pretrained('FPTAI/vibert-base-cased')
         format_special_tokens(self.tokenizer)
         self.sep_token = '[SEP]'
         self.cls_token = '[CLS]'
@@ -218,6 +220,7 @@ class BertData():
         self.sep_vid = self.tokenizer.convert_tokens_to_ids(self.sep_token)
         self.cls_vid = self.tokenizer.convert_tokens_to_ids(self.cls_token)
         self.pad_vid = self.tokenizer.convert_tokens_to_ids(self.pad_token)
+        self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.tokenizer.vocab, unk_token=self.tokenizer.unk_token)
 
     def preprocess(self, src, tgt, sent_labels, use_bert_basic_tokenizer=False, is_test=False):
 
@@ -243,9 +246,11 @@ class BertData():
             return None
 
         src_txt = [' '.join(sent) for sent in src]
+        print("src_txt: ", src_txt)
         text = ' {} {} '.format(self.sep_token, self.cls_token).join(src_txt)
-
-        src_subtokens = self.tokenizer.tokenize(text)
+        print("text: ", text)
+        src_subtokens = self.wordpiece_tokenizer.tokenize(text)
+        print("src_subtokens size: ", len(src_subtokens))
 
         src_subtokens = [self.cls_token] + src_subtokens + [self.sep_token]
         src_subtoken_idxs = self.tokenizer.convert_tokens_to_ids(src_subtokens)
@@ -261,7 +266,9 @@ class BertData():
         sent_labels = sent_labels[:len(cls_ids)]
 
         tgt_subtokens_str = '[unused0] ' + ' [unused2] '.join(
-            [' '.join(self.tokenizer.tokenize(' '.join(tt), use_bert_basic_tokenizer=use_bert_basic_tokenizer)) for tt in tgt]) + ''
+            [' '.join(self.wordpiece_tokenizer.tokenize(' '.join(tt))) for tt in tgt]) + ''
+        # [' '.join(self.tokenizer.tokenize(' '.join(tt), use_bert_basic_tokenizer=use_bert_basic_tokenizer)) for tt in tgt]) + ''
+        # dont bug pls
         tgt_subtoken = tgt_subtokens_str.split()[:self.args.max_tgt_ntokens]
         if ((not is_test) and len(tgt_subtoken) < 0):  # self.args.min_tgt_ntokens
             print("Pre:", 3)
@@ -289,7 +296,7 @@ def format_to_bert(args):
         pool = Pool(args.n_cpus)
         print('')
 
-        for d in pool.imap(_format_to_bert, a_lst):
+        for d in tqdm(pool.imap(_format_to_bert, a_lst)):
             pass
 
         pool.close()
@@ -308,21 +315,21 @@ def _format_to_bert(params):
     logger.info('Processing %s' % json_file)
     jobs = json.load(open(json_file, encoding='utf8'))
     datasets = []
-    for d in jobs:
+    for d in tqdm(jobs, leave=False):
 
         source, tgt = d['src'], d['tgt']
-        print('\n source:', source)
+        # print('\n source:', source)
         sent_labels = greedy_selection(source[:args.max_src_nsents], tgt, 3)
         if (args.lower):
             source = [' '.join(s).lower().split() for s in source]
 
             tgt = [' '.join(s).lower().split() for s in tgt]
-        print("source", source)
-        print("tgt", tgt)
+        # print("source", source)
+        # print("tgt", tgt)
         b_data = bert.preprocess(source, tgt, sent_labels, use_bert_basic_tokenizer=args.use_bert_basic_tokenizer, is_test=is_test)
 
         # b_data = bert.preprocess(source, tgt, sent_labels, use_bert_basic_tokenizer=args.use_bert_basic_tokenizer)
-        print(" B_data: ", b_data)
+        # print(" B_data: ", b_data)
         if (b_data is None):
             continue
         src_subtoken_idxs, sent_labels, tgt_subtoken_idxs, segments_ids, cls_ids, src_txt, tgt_txt = b_data

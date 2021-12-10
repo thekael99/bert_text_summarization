@@ -7,6 +7,7 @@ import torch
 from tqdm import tqdm
 
 from others.logging import logger
+from others.tokenization import format_special_tokens
 
 
 class Batch(object):
@@ -21,6 +22,7 @@ class Batch(object):
         if data is not None:
             self.batch_size = len(data)
             pre_src = [x[0] for x in data]
+            # print("pre_src: ", pre_src)
             pre_tgt = [x[1] for x in data]
             pre_segs = [x[2] for x in data]
             pre_clss = [x[3] for x in data]
@@ -367,8 +369,8 @@ class TextDataloader(object):
 
 def load_text(args, source_fp, target_fp, device):
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained('vinai/phobert-base', do_lower_case=True)
-    tokenizer = format_special_tokens(tokenizer)
+    tokenizer = AutoTokenizer.from_pretrained('FPTAI/vibert-base-cased')
+    format_special_tokens(tokenizer)
     sep_vid = tokenizer.convert_tokens_to_ids("[SEP]")
     cls_vid = tokenizer.convert_tokens_to_ids("[CLS]")
     n_lines = len(open(source_fp).read().split('\n'))

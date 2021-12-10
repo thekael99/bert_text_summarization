@@ -187,7 +187,7 @@ def validate(args, device_id, pt, step):
                                         args.batch_size, device,
                                         shuffle=False, is_test=False)
 
-    tokenizer = AutoTokenizer.from_pretrained('vinai/phobert-base', do_lower_case=True, cache_dir=args.temp_dir)
+    tokenizer = AutoTokenizer.from_pretrained('FPTAI/vibert-base-cased', cache_dir=args.temp_dir)
     format_special_tokens(tokenizer)
     symbols = {'BOS': tokenizer.convert_tokens_to_ids('[unused0]'), 'EOS': tokenizer.convert_tokens_to_ids('[unused1]'),
                'PAD': tokenizer.convert_tokens_to_ids('[PAD]'), 'EOQ': tokenizer.convert_tokens_to_ids('[unused2]')}
@@ -220,11 +220,13 @@ def test_abs(args, device_id, pt, step):
     test_iter = data_loader.Dataloader(args, load_dataset(args, 'test', shuffle=False),
                                        args.test_batch_size, device,
                                        shuffle=False, is_test=True)
-    tokenizer = AutoTokenizer.from_pretrained('vinai/phobert-base', do_lower_case=True, cache_dir=args.temp_dir)
+    tokenizer = AutoTokenizer.from_pretrained('FPTAI/vibert-base-cased', cache_dir=args.temp_dir)
     format_special_tokens(tokenizer)
     symbols = {'BOS': tokenizer.convert_tokens_to_ids('[unused0]'), 'EOS': tokenizer.convert_tokens_to_ids('[unused1]'),
                'PAD': tokenizer.convert_tokens_to_ids('[PAD]'), 'EOQ': tokenizer.convert_tokens_to_ids('[unused2]')}
+    print("Building predictor...")
     predictor = build_predictor(args, tokenizer, symbols, model, logger)
+    print("Start translate...")
     predictor.translate(test_iter, step)
 
 
@@ -249,7 +251,7 @@ def test_text_abs(args, device_id, pt, step):
     test_iter = data_loader.Dataloader(args, load_dataset(args, 'test', shuffle=False),
                                        args.test_batch_size, device,
                                        shuffle=False, is_test=True)
-    tokenizer = AutoTokenizer.from_pretrained('vinai/phobert-base', do_lower_case=True, cache_dir=args.temp_dir)
+    tokenizer = AutoTokenizer.from_pretrained('FPTAI/vibert-base-cased', cache_dir=args.temp_dir)
     format_special_tokens(tokenizer)
     symbols = {'BOS': tokenizer.convert_tokens_to_ids('[unused0]'), 'EOS': tokenizer.convert_tokens_to_ids('[unused1]'),
                'PAD': tokenizer.convert_tokens_to_ids('[PAD]'), 'EOQ': tokenizer.convert_tokens_to_ids('[unused2]')}
@@ -313,8 +315,7 @@ def train_abs_single(args, device_id):
     torch.backends.cudnn.deterministic = True
 
     def train_iter_fct():
-        return data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=True), args.batch_size, device,
-                                      shuffle=True, is_test=False)
+        return data_loader.Dataloader(args, load_dataset(args, 'train', shuffle=True), args.batch_size, device, shuffle=True, is_test=False)
 
     model = AbsSummarizer(args, device, checkpoint, bert_from_extractive)
     if (args.sep_optim):
@@ -326,12 +327,11 @@ def train_abs_single(args, device_id):
 
     logger.info(model)
 
-    tokenizer = AutoTokenizer.from_pretrained('vinai/phobert-base', do_lower_case=True, cache_dir=args.temp_dir)
+    tokenizer = AutoTokenizer.from_pretrained('FPTAI/vibert-base-cased', cache_dir=args.temp_dir)
     format_special_tokens(tokenizer)
     symbols = {'BOS': tokenizer.convert_tokens_to_ids('[unused0]'), 'EOS': tokenizer.convert_tokens_to_ids('[unused1]'),
                'PAD': tokenizer.convert_tokens_to_ids('[PAD]'), 'EOQ': tokenizer.convert_tokens_to_ids('[unused2]')}
-    train_loss = abs_loss(model.generator, symbols, model.vocab_size, device, train=True,
-                          label_smoothing=args.label_smoothing)
+    train_loss = abs_loss(model.generator, symbols, model.vocab_size, device, train=True, label_smoothing=args.label_smoothing)
 
     trainer = build_trainer(args, device_id, model, optim, train_loss)
 

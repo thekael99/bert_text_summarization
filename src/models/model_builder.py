@@ -2,7 +2,8 @@ import copy
 
 import torch
 import torch.nn as nn
-from transformers import BertModel, BertConfig
+
+from transformers import AutoModel, AutoConfig
 from torch.nn.init import xavier_uniform_
 
 from models.decoder import TransformerDecoder
@@ -117,21 +118,25 @@ class Bert(nn.Module):
     def __init__(self, large, temp_dir, finetune=False):
         super(Bert, self).__init__()
         if(large):
-            self.model = BertModel.from_pretrained('bert-large-uncased', cache_dir=temp_dir)
+            self.model = AutoModel.from_pretrained('bert-large-uncased', cache_dir=temp_dir)
         else:
-            self.model = BertModel.from_pretrained('vinai/phobert-base', cache_dir=temp_dir)
+            self.model = AutoModel.from_pretrained('FPTAI/vibert-base-cased', cache_dir=temp_dir)
+            self.model.resize_token_embeddings(38173)
 
         self.finetune = finetune
 
     def forward(self, x, segs, mask):
         if(self.finetune):
-
-            top_vec, _ = self.model(x, segs, attention_mask=mask)
+            # top_vec, _ = self.model(x, segs, attention_mask=mask)
+            top_vec = self.model(input_ids=x, token_type_ids=segs, attention_mask=mask)[0]
 
         else:
             self.eval()
             with torch.no_grad():
-                top_vec, _ = self.model(x, segs, attention_mask=mask)
+                # top_vec, _ = self.model(x, segs, attention_mask=mask)
+                top_vec = self.model(input_ids=x, token_type_ids=segs, attention_mask=mask)[0]
+        # print("top_vec: ", top_vec)
+        # raise Exception("Pause")
         return top_vec
 
 
@@ -145,9 +150,9 @@ class ExtSummarizer(nn.Module):
         self.ext_layer = ExtTransformerEncoder(self.bert.model.config.hidden_size, args.ext_ff_size, args.ext_heads,
                                                args.ext_dropout, args.ext_layers)
         if (args.encoder == 'baseline'):
-            bert_config = BertConfig(self.bert.model.config.vocab_size, hidden_size=args.ext_hidden_size,
+            bert_config = AutoConfig(self.bert.model.config.vocab_size, hidden_size=args.ext_hidden_size,
                                      num_hidden_layers=args.ext_layers, num_attention_heads=args.ext_heads, intermediate_size=args.ext_ff_size)
-            self.bert.model = BertModel(bert_config)
+            self.bert.model = AutoModel(bert_config)
             self.ext_layer = Classifier(self.bert.model.config.hidden_size)
 
         if(args.max_pos > 512):
@@ -189,12 +194,13 @@ class AbsSummarizer(nn.Module):
                 dict([(n[11:], p) for n, p in bert_from_extractive.items() if n.startswith('bert.model')]), strict=True)
 
         if (args.encoder == 'baseline'):
-            bert_config = BertConfig(self.bert.model.config.vocab_size, hidden_size=args.enc_hidden_size,
+            bert_config = AutoConfig(self.bert.model.config.vocab_size, hidden_size=args.enc_hidden_size,
                                      num_hidden_layers=args.enc_layers, num_attention_heads=8,
                                      intermediate_size=args.enc_ff_size,
                                      hidden_dropout_prob=args.enc_dropout,
                                      attention_probs_dropout_prob=args.enc_dropout)
-            self.bert.model = BertModel(bert_config)
+            self.bert.model = BertMode(bert_config)
+            self.bert.model.resize_token_embeddings(38173)
 
         if(args.max_pos > 512):
             my_pos_embeddings = nn.Embedding(args.max_pos, self.bert.model.config.hidden_size)
@@ -239,6 +245,7 @@ class AbsSummarizer(nn.Module):
         self.to(device)
 
     def forward(self, src, tgt, segs, clss, mask_src, mask_tgt, mask_cls):
+        # raise Exception(type(self))
         top_vec = self.bert(src, segs, mask_src)
         dec_state = self.decoder.init_decoder_state(src, top_vec)
         decoder_outputs, state = self.decoder(tgt[:, :-1], top_vec, dec_state)

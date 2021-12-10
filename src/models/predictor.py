@@ -11,6 +11,7 @@ from tensorboardX import SummaryWriter
 
 from others.utils import rouge_results_to_str, test_rouge, tile
 from translate.beam import GNMTGlobalScorer
+from tqdm import tqdm
 
 
 def build_predictor(args, tokenizer, symbols, model, logger=None):
@@ -112,7 +113,7 @@ class Translator(object):
             #                           attn[b], pred_score[b], gold_sent,
             #                           gold_score[b])
             # src = self.spm.DecodeIds([int(t) for t in translation_batch['batch'].src[0][5] if int(t) != len(self.spm)])
-            raw_src = [self.vocab.ids_to_tokens[int(t)] for t in src[b]][:500]
+            raw_src = self.vocab.convert_ids_to_tokens([int(t) for t in src[b]])[: 500]
             raw_src = ' '.join(raw_src)
             translation = (pred_sents, gold_sent, raw_src)
             # translation = (pred_sents[0], gold_sent)
@@ -141,7 +142,7 @@ class Translator(object):
         # pred_results, gold_results = [], []
         ct = 0
         with torch.no_grad():
-            for batch in data_iter:
+            for batch in tqdm(data_iter):
                 if(self.args.recall_eval):
                     gold_tgt_len = batch.tgt.size(1)
                     self.min_length = gold_tgt_len + 20
@@ -172,6 +173,8 @@ class Translator(object):
                     # self.raw_gold_out_file.write(' '.join(gold).strip() + '\n')
                     self.can_out_file.write(pred_str + '\n')
                     self.gold_out_file.write(gold_str + '\n')
+                    print("gold_str: ", gold_str)
+                    print("pred_str: ", pred_str)
                     self.src_out_file.write(src.strip() + '\n')
                     ct += 1
                 self.can_out_file.flush()
@@ -182,13 +185,13 @@ class Translator(object):
         self.gold_out_file.close()
         self.src_out_file.close()
 
-        if (step != -1):
-            rouges = self._report_rouge(gold_path, can_path)
-            self.logger.info('Rouges at step %d \n%s' % (step, rouge_results_to_str(rouges)))
-            if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('test/rouge1-F', rouges['rouge_1_f_score'], step)
-                self.tensorboard_writer.add_scalar('test/rouge2-F', rouges['rouge_2_f_score'], step)
-                self.tensorboard_writer.add_scalar('test/rougeL-F', rouges['rouge_l_f_score'], step)
+        # if (step != -1):
+        #     rouges = self._report_rouge(gold_path, can_path)
+        #     self.logger.info('Rouges at step %d \n%s' % (step, rouge_results_to_str(rouges)))
+        #     if self.tensorboard_writer is not None:
+        #         self.tensorboard_writer.add_scalar('test/rouge1-F', rouges['rouge_1_f_score'], step)
+        #         self.tensorboard_writer.add_scalar('test/rouge2-F', rouges['rouge_2_f_score'], step)
+        #         self.tensorboard_writer.add_scalar('test/rougeL-F', rouges['rouge_l_f_score'], step)
 
     def _report_rouge(self, gold_path, can_path):
         self.logger.info("Calculating Rouge")
@@ -297,8 +300,11 @@ class Translator(object):
                     for i in range(alive_seq.size(0)):
                         fail = False
                         words = [int(w) for w in alive_seq[i]]
-                        words = [self.vocab.ids_to_tokens[w] for w in words]
-                        words = ' '.join(words).replace(' ##', '').split()
+                        # print("type of self.vocab: ", type(self.vocab))
+                        # print(self.vocab.special_tokens_map)
+                        words = self.vocab.convert_ids_to_tokens(words)
+                        # words = ' '.join(words).replace(' ##', '').split()
+                        words = self.vocab.convert_tokens_to_string(words).split()
                         if(len(words) <= 3):
                             continue
                         trigrams = [(words[i - 1], words[i], words[i + 1]) for i in range(1, len(words) - 1)]
@@ -315,8 +321,9 @@ class Translator(object):
             topk_log_probs = topk_scores * length_penalty
 
             # Resolve beam origin and true word ids.
-            topk_beam_index = topk_ids.div(vocab_size)
+            topk_beam_index = topk_ids // vocab_size
             topk_ids = topk_ids.fmod(vocab_size)
+            # print("vocab_size: ", vocab_size)
 
             # Map beam_index to batch_index in the flat representation.
             batch_index = (

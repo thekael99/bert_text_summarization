@@ -56,7 +56,6 @@ def format_special_tokens(tokenizer):
     tokenizer.add_special_tokens({"additional_special_tokens": ["[unused0]", "[unused1]", "[unused2]"]})
     tokenizer.add_special_tokens({"bos_token": "[BOS]"})
     tokenizer.add_special_tokens({"eos_token": "[EOS]"})
-    tokenizer.add_special_tokens({"unk_token": "[UNK]"})
     tokenizer.add_special_tokens({"sep_token": "[SEP]"})
     tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     tokenizer.add_special_tokens({"cls_token": "[CLS]"})
@@ -185,9 +184,7 @@ class BertTokenizer(object):
 class BasicTokenizer(object):
     """Runs basic tokenization (punctuation splitting, lower casing, etc.)."""
 
-    def __init__(self,
-                 do_lower_case=True,
-                 never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
+    def __init__(self, do_lower_case=True, never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
         """Constructs a BasicTokenizer.
 
         Args:
